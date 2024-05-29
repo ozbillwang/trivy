@@ -3,21 +3,20 @@ package commands
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 
-	"golang.org/x/exp/slices"
-
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/aquasecurity/defsec/pkg/errs"
-	awsScanner "github.com/aquasecurity/defsec/pkg/scanners/cloud/aws"
+	"github.com/aquasecurity/trivy-aws/pkg/errs"
+	awsScanner "github.com/aquasecurity/trivy-aws/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/cloud"
+	"github.com/aquasecurity/trivy/pkg/cloud/aws/config"
 	"github.com/aquasecurity/trivy/pkg/cloud/aws/scanner"
 	"github.com/aquasecurity/trivy/pkg/cloud/report"
 	"github.com/aquasecurity/trivy/pkg/commands/operation"
-	cr "github.com/aquasecurity/trivy/pkg/compliance/report"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	"github.com/aquasecurity/trivy/pkg/log"
 	"github.com/aquasecurity/trivy/pkg/types"
@@ -25,20 +24,17 @@ import (
 
 var allSupportedServicesFunc = awsScanner.AllSupportedServices
 
-func getAccountIDAndRegion(ctx context.Context, region string) (string, string, error) {
-	log.Logger.Debug("Looking for AWS credentials provider...")
+func getAccountIDAndRegion(ctx context.Context, region, endpoint string) (string, string, error) {
+	log.DebugContext(ctx, "Looking for AWS credentials provider...")
 
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+	cfg, err := config.LoadDefaultAWSConfig(ctx, region, endpoint)
 	if err != nil {
 		return "", "", err
-	}
-	if region != "" {
-		cfg.Region = region
 	}
 
 	svc := sts.NewFromConfig(cfg)
 
-	log.Logger.Debug("Looking up AWS caller identity...")
+	log.DebugContext(ctx, "Looking up AWS caller identity...")
 	result, err := svc.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
 		return "", "", xerrors.Errorf("failed to discover AWS caller identity: %w", err)
@@ -46,7 +42,7 @@ func getAccountIDAndRegion(ctx context.Context, region string) (string, string, 
 	if result.Account == nil {
 		return "", "", xerrors.Errorf("missing account id for aws account")
 	}
-	log.Logger.Debugf("Verified AWS credentials for account %s!", *result.Account)
+	log.DebugContext(ctx, "Verified AWS credentials for account!", log.String("account", *result.Account))
 	return *result.Account, cfg.Region, nil
 }
 
@@ -85,27 +81,28 @@ func processOptions(ctx context.Context, opt *flag.Options) error {
 
 	if opt.Account == "" || opt.Region == "" {
 		var err error
-		opt.Account, opt.Region, err = getAccountIDAndRegion(ctx, opt.Region)
+		opt.Account, opt.Region, err = getAccountIDAndRegion(ctx, opt.Region, opt.Endpoint)
 		if err != nil {
 			return err
 		}
 	}
 
-	err := filterServices(opt)
+	err := filterServices(ctx, opt)
 	if err != nil {
 		return err
 	}
 
-	log.Logger.Debug("scanning services: ", opt.Services)
+	log.DebugContext(ctx, "Scanning services", log.Any("services", opt.Services))
 	return nil
 }
 
-func filterServices(opt *flag.Options) error {
-	if len(opt.Services) == 0 && len(opt.SkipServices) == 0 {
-		log.Logger.Debug("No service(s) specified, scanning all services...")
+func filterServices(ctx context.Context, opt *flag.Options) error {
+	switch {
+	case len(opt.Services) == 0 && len(opt.SkipServices) == 0:
+		log.DebugContext(ctx, "No service(s) specified, scanning all services...")
 		opt.Services = allSupportedServicesFunc()
-	} else if len(opt.SkipServices) > 0 {
-		log.Logger.Debug("excluding services: ", opt.SkipServices)
+	case len(opt.SkipServices) > 0:
+		log.DebugContext(ctx, "Excluding services", log.Any("services", opt.SkipServices))
 		for _, s := range allSupportedServicesFunc() {
 			if slices.Contains(opt.SkipServices, s) {
 				continue
@@ -114,8 +111,9 @@ func filterServices(opt *flag.Options) error {
 				opt.Services = append(opt.Services, s)
 			}
 		}
-	} else if len(opt.Services) > 0 {
-		log.Logger.Debugf("Specific services were requested: [%s]...", strings.Join(opt.Services, ", "))
+	case len(opt.Services) > 0:
+		log.DebugContext(ctx, "Specific services were requested...",
+			log.String("services", strings.Join(opt.Services, ", ")))
 		for _, service := range opt.Services {
 			var found bool
 			supported := allSupportedServicesFunc()
@@ -134,18 +132,15 @@ func filterServices(opt *flag.Options) error {
 }
 
 func Run(ctx context.Context, opt flag.Options) error {
-
 	ctx, cancel := context.WithTimeout(ctx, opt.GlobalOptions.Timeout)
 	defer cancel()
 
-	if err := log.InitLogger(opt.Debug, false); err != nil {
-		return xerrors.Errorf("logger error: %w", err)
-	}
+	ctx = log.WithContextPrefix(ctx, "aws")
 
 	var err error
 	defer func() {
 		if errors.Is(err, context.DeadlineExceeded) {
-			log.Logger.Warn("Increase --timeout value")
+			log.Warn("Provide a higher timeout value, see https://aquasecurity.github.io/trivy/latest/docs/configuration/")
 		}
 	}()
 
@@ -158,32 +153,18 @@ func Run(ctx context.Context, opt flag.Options) error {
 		var aerr errs.AdapterError
 		if errors.As(err, &aerr) {
 			for _, e := range aerr.Errors() {
-				log.Logger.Warnf("Adapter error: %s", e)
+				log.WarnContext(ctx, "Adapter error", log.Err(e))
 			}
 		} else {
 			return xerrors.Errorf("aws scan error: %w", err)
 		}
 	}
 
-	log.Logger.Debug("Writing report to output...")
-	if opt.Compliance.Spec.ID != "" {
-		convertedResults := report.ConvertResults(results, cloud.ProviderAWS, opt.Services)
-		var crr []types.Results
-		for _, r := range convertedResults {
-			crr = append(crr, r.Results)
-		}
+	log.DebugContext(ctx, "Writing report to output...")
 
-		complianceReport, err := cr.BuildComplianceReport(crr, opt.Compliance)
-		if err != nil {
-			return xerrors.Errorf("compliance report build error: %w", err)
-		}
-
-		return cr.Write(complianceReport, cr.Option{
-			Format: opt.Format,
-			Report: opt.ReportFormat,
-			Output: opt.Output,
-		})
-	}
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Rule().AVDID < results[j].Rule().AVDID
+	})
 
 	res := results.GetFailed()
 	if opt.MisconfOptions.IncludeNonFailures {
@@ -191,10 +172,9 @@ func Run(ctx context.Context, opt flag.Options) error {
 	}
 
 	r := report.New(cloud.ProviderAWS, opt.Account, opt.Region, res, opt.Services)
-	if err := report.Write(r, opt, cached); err != nil {
+	if err := report.Write(ctx, r, opt, cached); err != nil {
 		return xerrors.Errorf("unable to write results: %w", err)
 	}
 
-	operation.Exit(opt, r.Failed())
-	return nil
+	return operation.Exit(opt, r.Failed(), types.Metadata{})
 }

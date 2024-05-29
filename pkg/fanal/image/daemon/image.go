@@ -132,7 +132,7 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 }
 
 func (img *image) configFile() (*v1.ConfigFile, error) {
-	log.Logger.Debug("Saving the container image to a local file to obtain the image config...")
+	log.Debug("Saving the container image to a local file to obtain the image config...")
 
 	// Need to fall back into expensive operations like "docker save"
 	// because the config file cannot be generated properly from container engine API for some reason.
@@ -217,7 +217,7 @@ func (img *image) imageConfig(config *container.Config) v1.Config {
 	}
 
 	if len(config.ExposedPorts) > 0 {
-		c.ExposedPorts = map[string]struct{}{}
+		c.ExposedPorts = make(map[string]struct{})
 		for port := range c.ExposedPorts {
 			c.ExposedPorts[port] = struct{}{}
 		}

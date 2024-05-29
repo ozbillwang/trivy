@@ -1,16 +1,16 @@
 package fsutils
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 
-	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	dio "github.com/aquasecurity/go-dep-parser/pkg/io"
 	"github.com/aquasecurity/trivy/pkg/log"
 )
 
@@ -85,9 +85,17 @@ func DirExists(path string) bool {
 	return true
 }
 
+func FileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	if errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	return err == nil
+}
+
 type WalkDirRequiredFunc func(path string, d fs.DirEntry) bool
 
-type WalkDirFunc func(path string, d fs.DirEntry, r dio.ReadSeekerAt) error
+type WalkDirFunc func(path string, d fs.DirEntry, r io.Reader) error
 
 func WalkDir(fsys fs.FS, root string, required WalkDirRequiredFunc, fn WalkDirFunc) error {
 	return fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
@@ -101,16 +109,23 @@ func WalkDir(fsys fs.FS, root string, required WalkDirRequiredFunc, fn WalkDirFu
 		if err != nil {
 			return xerrors.Errorf("file open error: %w", err)
 		}
-
-		file, ok := f.(dio.ReadSeekCloserAt)
-		if !ok {
-			return xerrors.Errorf("type assertion error: %w", err)
-		}
 		defer f.Close()
 
-		if err = fn(path, d, file); err != nil {
-			log.Logger.Debugw("Walk error", zap.String("file_path", path), zap.Error(err))
+		if err = fn(path, d, f); err != nil {
+			log.Debug("Walk error", log.String("file_path", path), log.Err(err))
 		}
 		return nil
 	})
+}
+
+func RequiredExt(exts ...string) WalkDirRequiredFunc {
+	return func(filePath string, _ fs.DirEntry) bool {
+		return slices.Contains(exts, filepath.Ext(filePath))
+	}
+}
+
+func RequiredFile(fileNames ...string) WalkDirRequiredFunc {
+	return func(filePath string, _ fs.DirEntry) bool {
+		return slices.Contains(fileNames, filepath.Base(filePath))
+	}
 }

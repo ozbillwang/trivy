@@ -185,18 +185,6 @@ Trivy supports the following packages.
 - [OS packages][os_packages]
 - [Language-specific packages][language_packages]
 
-In addition to the above packages, Trivy also supports the following packages for generating SBOM.
-
-!!! note
-    These packages are not supported for vulnerability scanning.
-
-| Language | File              | Dependency location[^1] |
-|----------|-------------------|:-----------------------:|
-| Python   | conda package[^2] |            -            |
-| Swift    | Podfile.lock      |            -            |
-
-[^1]: Use `startline == 1 and endline == 1` for unsupported file types
-[^2]: `envs/*/conda-meta/*.json`
 
 ### Formats
 #### CycloneDX
@@ -229,13 +217,16 @@ $ cat result.json | jq .
   "version": 1,
   "metadata": {
     "timestamp": "2022-02-22T15:11:40.270597Z",
-    "tools": [
-      {
-        "vendor": "aquasecurity",
-        "name": "trivy",
-        "version": "dev"
-      }
-    ],
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "group": "aquasecurity",
+          "name": "trivy",
+          "version": "dev"
+        }
+      ]
+    },
     "component": {
       "bom-ref": "pkg:oci/alpine@sha256:21a3deaa0d32a8057914f36584b5288d2e5ecc984380bc0118285c70fa8c9300?repository_url=index.docker.io%2Flibrary%2Falpine&arch=amd64",
       "type": "container",
@@ -754,7 +745,7 @@ Trivy automatically detects the SBOM files and uses them for scanning.
 It is enabled in the following targets.
 
 |     Target      | Enabled |
-|:---------------:|:-------:|
+| :-------------: | :-----: |
 | Container Image |    ✓    |
 |   Filesystem    |         |
 |     Rootfs      |    ✓    |
@@ -771,5 +762,5 @@ It is enabled in the following targets.
 [sbom]: https://cyclonedx.org/capabilities/sbom/
 [bov]: https://cyclonedx.org/capabilities/bov/
 
-[os_packages]: ../scanner/vulnerability/os.md
-[language_packages]: ../scanner/vulnerability/language/index.md
+[os_packages]: ../scanner/vulnerability.md#os-packages
+[language_packages]: ../scanner/vulnerability.md#language-specific-packages

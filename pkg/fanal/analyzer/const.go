@@ -1,6 +1,8 @@
 package analyzer
 
-import "github.com/aquasecurity/defsec/pkg/detection"
+import (
+	"github.com/aquasecurity/trivy/pkg/iac/detection"
+)
 
 type Type string
 
@@ -61,11 +63,13 @@ const (
 	TypePnpm       Type = "pnpm"
 
 	// .NET
-	TypeNuget      Type = "nuget"
-	TypeDotNetCore Type = "dotnet-core"
+	TypeNuget         Type = "nuget"
+	TypeDotNetCore    Type = "dotnet-core"
+	TypePackagesProps Type = "packages-props"
 
 	// Conda
 	TypeCondaPkg Type = "conda-pkg"
+	TypeCondaEnv Type = "conda-environment"
 
 	// Python
 	TypePythonPkg Type = "python-pkg"
@@ -84,10 +88,14 @@ const (
 	TypeMixLock Type = "mix-lock"
 
 	// Swift
+	TypeSwift     Type = "swift"
 	TypeCocoaPods Type = "cocoapods"
 
 	// Dart
 	TypePubSpecLock Type = "pubspec-lock"
+
+	// Julia
+	TypeJulia Type = "julia"
 
 	// ============
 	// Non-packaged
@@ -105,13 +113,14 @@ const (
 	// =================
 	// Structured Config
 	// =================
-	TypeAzureARM       Type = Type(detection.FileTypeAzureARM)
-	TypeCloudFormation Type = Type(detection.FileTypeCloudFormation)
-	TypeDockerfile     Type = Type(detection.FileTypeDockerfile)
-	TypeHelm           Type = Type(detection.FileTypeHelm)
-	TypeKubernetes     Type = Type(detection.FileTypeKubernetes)
-	TypeTerraform      Type = Type(detection.FileTypeTerraform)
-	TypeTerraformPlan  Type = Type(detection.FileTypeTerraformPlan)
+	TypeAzureARM              Type = Type(detection.FileTypeAzureARM)
+	TypeCloudFormation        Type = Type(detection.FileTypeCloudFormation)
+	TypeDockerfile            Type = Type(detection.FileTypeDockerfile)
+	TypeHelm                  Type = Type(detection.FileTypeHelm)
+	TypeKubernetes            Type = Type(detection.FileTypeKubernetes)
+	TypeTerraform             Type = Type(detection.FileTypeTerraform)
+	TypeTerraformPlanJSON     Type = Type(detection.FileTypeTerraformPlanJSON)
+	TypeTerraformPlanSnapshot Type = Type(detection.FileTypeTerraformPlanSnapshot)
 
 	// ========
 	// License
@@ -170,7 +179,9 @@ var (
 		TypePnpm,
 		TypeNuget,
 		TypeDotNetCore,
+		TypePackagesProps,
 		TypeCondaPkg,
+		TypeCondaEnv,
 		TypePythonPkg,
 		TypePip,
 		TypePipenv,
@@ -180,8 +191,10 @@ var (
 		TypeRustBinary,
 		TypeConanLock,
 		TypeCocoaPods,
+		TypeSwift,
 		TypePubSpecLock,
 		TypeMixLock,
+		TypeJulia,
 	}
 
 	// TypeLockfiles has all lock file analyzers
@@ -198,8 +211,10 @@ var (
 		TypeConanLock,
 		TypeGradleLock,
 		TypeCocoaPods,
+		TypeSwift,
 		TypePubSpecLock,
 		TypeMixLock,
+		TypeCondaEnv,
 	}
 
 	// TypeIndividualPkgs has all analyzers for individual packages
@@ -221,6 +236,7 @@ var (
 		TypeHelm,
 		TypeKubernetes,
 		TypeTerraform,
-		TypeTerraformPlan,
+		TypeTerraformPlanJSON,
+		TypeTerraformPlanSnapshot,
 	}
 )

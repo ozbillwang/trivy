@@ -2,6 +2,7 @@ package misconf
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,14 +28,30 @@ func TestScannerOption_Sort(t *testing.T) {
 		{
 			name: "happy path",
 			fields: fields{
-				Namespaces:  []string{"main", "custom", "default"},
+				Namespaces: []string{
+					"main",
+					"custom",
+					"default",
+				},
 				PolicyPaths: []string{"policy"},
-				DataPaths:   []string{"data/b", "data/c", "data/a"},
+				DataPaths: []string{
+					"data/b",
+					"data/c",
+					"data/a",
+				},
 			},
 			want: ScannerOption{
-				Namespaces:  []string{"custom", "default", "main"},
+				Namespaces: []string{
+					"custom",
+					"default",
+					"main",
+				},
 				PolicyPaths: []string{"policy"},
-				DataPaths:   []string{"data/a", "data/b", "data/c"},
+				DataPaths: []string{
+					"data/a",
+					"data/b",
+					"data/c",
+				},
 			},
 		},
 		{
@@ -78,7 +95,7 @@ func TestScanner_Scan(t *testing.T) {
 		fields           fields
 		files            []file
 		wantFilePath     string
-		wantFileType     string
+		wantFileType     types.ConfigType
 		misconfsExpected int
 	}{
 		{
@@ -116,8 +133,7 @@ func TestScanner_Scan(t *testing.T) {
 		},
 		{
 			name:        "happy path. terraform plan file",
-			scannerFunc: NewTerraformPlanScanner,
-			fields:      fields{},
+			scannerFunc: NewTerraformPlanJSONScanner,
 			files: []file{
 				{
 					path:    "main.tfplan.json",
@@ -125,7 +141,7 @@ func TestScanner_Scan(t *testing.T) {
 				},
 			},
 			wantFilePath:     "main.tf",
-			wantFileType:     types.TerraformPlan,
+			wantFileType:     types.TerraformPlanJSON,
 			misconfsExpected: 2,
 		},
 	}
@@ -143,7 +159,7 @@ func TestScanner_Scan(t *testing.T) {
 
 			misconfs, err := s.Scan(context.Background(), fsys)
 			require.NoError(t, err)
-			require.Equal(t, tt.misconfsExpected, len(misconfs), "wrong number of misconfigurations found")
+			require.Len(t, misconfs, tt.misconfsExpected, "wrong number of misconfigurations found")
 			if tt.misconfsExpected == 1 {
 				assert.Equal(t, tt.wantFilePath, misconfs[0].FilePath, "filePaths don't equal")
 				assert.Equal(t, tt.wantFileType, misconfs[0].FileType, "fileTypes don't equal")
@@ -155,15 +171,30 @@ func TestScanner_Scan(t *testing.T) {
 func Test_createPolicyFS(t *testing.T) {
 	t.Run("outside pwd", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "subdir/testdir"), 0750))
-		f, got, err := createPolicyFS([]string{filepath.Join(tmpDir, "subdir/testdir")})
-		require.NoError(t, err)
-		assert.Equal(t, []string{"."}, got)
-
-		d, err := f.Open(tmpDir)
-		require.NoError(t, err)
-		stat, err := d.Stat()
-		require.NoError(t, err)
-		assert.True(t, stat.IsDir())
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "subdir", "testdir"), 0750))
+		f, got, err := CreatePolicyFS([]string{filepath.Join(tmpDir, "subdir", "testdir")})
+		assertFS(t, tmpDir, f, got, err)
 	})
+}
+
+func Test_CreateDataFS(t *testing.T) {
+	t.Run("outside pwd", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "subdir", "testdir"), 0750))
+		f, got, err := CreateDataFS([]string{filepath.Join(tmpDir, "subdir", "testdir")})
+		assertFS(t, tmpDir, f, got, err)
+	})
+}
+
+func assertFS(t *testing.T, tmpDir string, f fs.FS, got []string, err error) {
+	t.Helper()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"."}, got)
+
+	d, err := f.Open(tmpDir)
+	require.NoError(t, err)
+	stat, err := d.Stat()
+	require.NoError(t, err)
+	assert.True(t, stat.IsDir())
 }

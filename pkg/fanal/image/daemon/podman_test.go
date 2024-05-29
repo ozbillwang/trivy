@@ -7,14 +7,13 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/aquasecurity/testdocker/engine"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/docker/docker/api/types"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/aquasecurity/testdocker/engine"
 )
 
 func setupPodmanSock(t *testing.T) *httptest.Server {
@@ -23,7 +22,7 @@ func setupPodmanSock(t *testing.T) *httptest.Server {
 	runtimeDir, err := os.MkdirTemp("", "daemon")
 	require.NoError(t, err)
 
-	os.Setenv("XDG_RUNTIME_DIR", runtimeDir)
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
 
 	dir := filepath.Join(runtimeDir, "podman")
 	err = os.MkdirAll(dir, os.ModePerm)
@@ -85,14 +84,14 @@ func TestPodmanImage(t *testing.T) {
 			ref, err := name.ParseReference(tt.imageName)
 			require.NoError(t, err)
 
-			img, cleanup, err := PodmanImage(ref.Name())
+			img, cleanup, err := PodmanImage(ref.Name(), "")
 			defer cleanup()
 
 			if tt.wantErr {
-				assert.NotNil(t, err)
+				require.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			confName, err := img.ConfigName()
 			require.NoError(t, err)

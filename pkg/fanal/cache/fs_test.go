@@ -177,7 +177,7 @@ func TestFSCache_PutBlob(t *testing.T) {
 					PackageInfos: []types.PackageInfo{
 						{
 							FilePath: "lib/apk/db/installed",
-							Packages: []types.Package{
+							Packages: types.Packages{
 								{
 									Name:    "musl",
 									Version: "1.1.22-r3",
@@ -189,7 +189,7 @@ func TestFSCache_PutBlob(t *testing.T) {
 						{
 							Type:     "composer",
 							FilePath: "php-app/composer.lock",
-							Libraries: []types.Package{
+							Packages: types.Packages{
 								{
 									Name:    "guzzlehttp/guzzle",
 									Version: "6.2.0",
@@ -225,6 +225,7 @@ func TestFSCache_PutBlob(t *testing.T) {
 				        {
 				          "Name": "musl",
 				          "Version": "1.1.22-r3",
+                          "Identifier": {},
 						  "Layer": {}
 				        }
 				      ]
@@ -234,15 +235,17 @@ func TestFSCache_PutBlob(t *testing.T) {
 				    {
 				      "Type": "composer",
 				      "FilePath": "php-app/composer.lock",
-				      "Libraries": [
+				      "Packages": [
                         {
                            "Name":"guzzlehttp/guzzle",
                            "Version":"6.2.0",
+                           "Identifier": {},
 						   "Layer": {}
                         },
                         {
                            "Name":"guzzlehttp/promises",
                            "Version":"v1.3.1",
+                           "Identifier": {},
 						   "Layer": {}
                         }
 				      ]
@@ -283,7 +286,7 @@ func TestFSCache_PutBlob(t *testing.T) {
 
 			err = fs.PutBlob(tt.args.diffID, tt.args.layerInfo)
 			if tt.wantErr != "" {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr, tt.name)
 				return
 			} else {
@@ -322,7 +325,7 @@ func TestFSCache_PutArtifact(t *testing.T) {
 					Created:       time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC),
 					DockerVersion: "18.06.1-ce",
 					OS:            "linux",
-					HistoryPackages: []types.Package{
+					HistoryPackages: types.Packages{
 						{
 							Name:    "musl",
 							Version: "1.2.3",
@@ -341,6 +344,7 @@ func TestFSCache_PutArtifact(t *testing.T) {
 				    {
 				      "Name": "musl",
 				      "Version": "1.2.3",
+                      "Identifier": {},
 					  "Layer": {}
 				    }
 				  ]
@@ -362,7 +366,7 @@ func TestFSCache_PutArtifact(t *testing.T) {
 
 			err = fs.PutArtifact(tt.args.imageID, tt.args.imageConfig)
 			if tt.wantErr != "" {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr, tt.name)
 				return
 			} else {

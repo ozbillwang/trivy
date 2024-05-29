@@ -82,7 +82,7 @@ func TestCacheFlagGroup_ToOptions(t *testing.T) {
 			fields: fields{
 				CacheBackend: "unknown",
 			},
-			assertion: func(t require.TestingT, err error, msgs ...interface{}) {
+			assertion: func(t require.TestingT, err error, msgs ...any) {
 				require.ErrorContains(t, err, "unsupported cache backend")
 			},
 		},
@@ -92,7 +92,7 @@ func TestCacheFlagGroup_ToOptions(t *testing.T) {
 				CacheBackend: "redis://localhost:6379",
 				RedisCACert:  "ca-cert.pem",
 			},
-			assertion: func(t require.TestingT, err error, msgs ...interface{}) {
+			assertion: func(t require.TestingT, err error, msgs ...any) {
 				require.ErrorContains(t, err, "you must provide Redis CA")
 			},
 		},
@@ -108,13 +108,13 @@ func TestCacheFlagGroup_ToOptions(t *testing.T) {
 			viper.Set(flag.RedisKeyFlag.ConfigName, tt.fields.RedisKey)
 
 			f := &flag.CacheFlagGroup{
-				ClearCache:   &flag.ClearCacheFlag,
-				CacheBackend: &flag.CacheBackendFlag,
-				CacheTTL:     &flag.CacheTTLFlag,
-				RedisTLS:     &flag.RedisTLSFlag,
-				RedisCACert:  &flag.RedisCACertFlag,
-				RedisCert:    &flag.RedisCertFlag,
-				RedisKey:     &flag.RedisKeyFlag,
+				ClearCache:   flag.ClearCacheFlag.Clone(),
+				CacheBackend: flag.CacheBackendFlag.Clone(),
+				CacheTTL:     flag.CacheTTLFlag.Clone(),
+				RedisTLS:     flag.RedisTLSFlag.Clone(),
+				RedisCACert:  flag.RedisCACertFlag.Clone(),
+				RedisCert:    flag.RedisCertFlag.Clone(),
+				RedisKey:     flag.RedisKeyFlag.Clone(),
 			}
 
 			got, err := f.ToOptions()

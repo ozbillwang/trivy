@@ -1,7 +1,6 @@
 package types
 
 import (
-	"github.com/samber/lo"
 	"golang.org/x/exp/slices"
 )
 
@@ -30,11 +29,14 @@ const (
 	// NoneScanner is the scanner of none
 	NoneScanner = Scanner("none")
 
+	// SBOMScanner is the virtual scanner of SBOM, which cannot be enabled by the user
+	SBOMScanner = Scanner("sbom")
+
 	// VulnerabilityScanner is the scanner of vulnerabilities
 	VulnerabilityScanner = Scanner("vuln")
 
 	// MisconfigScanner is the scanner of misconfigurations
-	MisconfigScanner = Scanner("config")
+	MisconfigScanner = Scanner("misconfig")
 
 	// SecretScanner is the scanner of secrets
 	SecretScanner = Scanner("secret")
@@ -71,22 +73,22 @@ var (
 	}
 )
 
-func (scanners Scanners) Enabled(s Scanner) bool {
-	return slices.Contains(scanners, s)
+func (scanners *Scanners) Enable(s Scanner) {
+	if !scanners.Enabled(s) {
+		*scanners = append(*scanners, s)
+	}
+}
+
+func (scanners *Scanners) Enabled(s Scanner) bool {
+	return slices.Contains(*scanners, s)
 }
 
 // AnyEnabled returns true if any of the passed scanners is included.
-func (scanners Scanners) AnyEnabled(ss ...Scanner) bool {
+func (scanners *Scanners) AnyEnabled(ss ...Scanner) bool {
 	for _, s := range ss {
 		if scanners.Enabled(s) {
 			return true
 		}
 	}
 	return false
-}
-
-func (scanners Scanners) StringSlice() []string {
-	return lo.Map(scanners, func(s Scanner, _ int) string {
-		return string(s)
-	})
 }

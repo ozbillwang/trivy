@@ -7,8 +7,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 
-	"github.com/aquasecurity/defsec/pkg/scan"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/iac/rego"
+	"github.com/aquasecurity/trivy/pkg/iac/scan"
 	"github.com/aquasecurity/trivy/pkg/types"
 )
 
@@ -57,16 +58,16 @@ func ConvertResults(results scan.Results, provider string, scoped []string) map[
 
 				// empty namespace implies a go rule from defsec, "builtin" refers to a built-in rego rule
 				// this ensures we don't generate bad links for custom policies
-				if result.RegoNamespace() == "" || strings.HasPrefix(result.RegoNamespace(), "builtin.") {
+				if result.RegoNamespace() == "" || rego.IsBuiltinNamespace(result.RegoNamespace()) {
 					primaryURL = fmt.Sprintf("https://avd.aquasec.com/misconfig/%s", strings.ToLower(result.Rule().AVDID))
 				}
 
-				status := types.StatusFailure
+				status := types.MisconfStatusFailure
 				switch result.Status() {
 				case scan.StatusPassed:
-					status = types.StatusPassed
+					status = types.MisconfStatusPassed
 				case scan.StatusIgnored:
-					status = types.StatusException
+					status = types.MisconfStatusException
 				}
 
 				flat := result.Flatten()
