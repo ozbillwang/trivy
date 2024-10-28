@@ -25,11 +25,12 @@ const (
 	PropertyClass         = "Class"
 
 	// Image properties
-	PropertySize       = "Size"
-	PropertyImageID    = "ImageID"
-	PropertyRepoDigest = "RepoDigest"
-	PropertyDiffID     = "DiffID"
-	PropertyRepoTag    = "RepoTag"
+	PropertySize         = "Size"
+	PropertyImageID      = "ImageID"
+	PropertyRepoDigest   = "RepoDigest"
+	PropertyDiffID       = "DiffID"
+	PropertyRepoTag      = "RepoTag"
+	PropertyLabelsPrefix = "Labels"
 
 	// Package properties
 	PropertyPkgID           = "PkgID"
@@ -194,7 +195,6 @@ type Relationship struct {
 type Vulnerability struct {
 	dtypes.Vulnerability
 	ID               string
-	PkgID            string
 	PkgName          string
 	InstalledVersion string
 	FixedVersion     string

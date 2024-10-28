@@ -753,6 +753,13 @@ var (
 			Relationship: ftypes.RelationshipIndirect,
 		},
 		{
+			ID:           "await-sleep@0.0.1",
+			Name:         "await-sleep",
+			Version:      "0.0.1",
+			Dev:          true,
+			Relationship: ftypes.RelationshipDirect,
+		},
+		{
 			ID:           "debug@4.3.4",
 			Name:         "debug",
 			Version:      "4.3.4",
@@ -844,6 +851,12 @@ var (
 			Relationship: ftypes.RelationshipDirect,
 		},
 		{
+			ID:           "sleep-utils@1.0.3",
+			Name:         "sleep-utils",
+			Version:      "1.0.3",
+			Relationship: ftypes.RelationshipDirect,
+		},
+		{
 			ID:           "statuses@1.4.0",
 			Name:         "statuses",
 			Version:      "1.4.0",
@@ -897,6 +910,70 @@ var (
 			ID: "promise@8.1.0",
 			DependsOn: []string{
 				"asap@2.0.6",
+			},
+		},
+	}
+
+	pnpmV9CyclicImport = []ftypes.Package{
+		{
+			ID:           "update-browserslist-db@1.0.16",
+			Name:         "update-browserslist-db",
+			Version:      "1.0.16",
+			Relationship: ftypes.RelationshipDirect,
+		},
+		{
+			ID:           "browserslist@4.23.0",
+			Name:         "browserslist",
+			Version:      "4.23.0",
+			Relationship: ftypes.RelationshipIndirect,
+		},
+		{
+			ID:           "caniuse-lite@1.0.30001627",
+			Name:         "caniuse-lite",
+			Version:      "1.0.30001627",
+			Relationship: ftypes.RelationshipIndirect,
+		},
+		{
+			ID:           "electron-to-chromium@1.4.789",
+			Name:         "electron-to-chromium",
+			Version:      "1.4.789",
+			Relationship: ftypes.RelationshipIndirect,
+		},
+		{
+			ID:           "escalade@3.1.2",
+			Name:         "escalade",
+			Version:      "3.1.2",
+			Relationship: ftypes.RelationshipIndirect,
+		},
+		{
+			ID:           "node-releases@2.0.14",
+			Name:         "node-releases",
+			Version:      "2.0.14",
+			Relationship: ftypes.RelationshipIndirect,
+		},
+		{
+			ID:           "picocolors@1.0.1",
+			Name:         "picocolors",
+			Version:      "1.0.1",
+			Relationship: ftypes.RelationshipIndirect,
+		},
+	}
+	pnpmV9CyclicImportDeps = []ftypes.Dependency{
+		{
+			ID: "browserslist@4.23.0",
+			DependsOn: []string{
+				"caniuse-lite@1.0.30001627",
+				"electron-to-chromium@1.4.789",
+				"node-releases@2.0.14",
+				"update-browserslist-db@1.0.16",
+			},
+		},
+		{
+			ID: "update-browserslist-db@1.0.16",
+			DependsOn: []string{
+				"browserslist@4.23.0",
+				"escalade@3.1.2",
+				"picocolors@1.0.1",
 			},
 		},
 	}

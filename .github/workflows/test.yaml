@@ -6,7 +6,11 @@ on:
       - 'docs/**'
       - 'mkdocs.yml'
       - 'LICENSE'
+      - '.release-please-manifest.json' ## don't run tests for release-please PRs
+      - 'helm/trivy/Chart.yaml'
   merge_group:
+  workflow_dispatch:
+
 env:
   GO_VERSION: '1.22'
 jobs:
@@ -17,22 +21,14 @@ jobs:
       matrix:
         operating-system: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@v10
-        with:
-          root-reserve-mb: 32768 # The golangci-lint uses a lot of space.
-          remove-android: "true"
-          remove-docker-images: "true"
-          remove-dotnet: "true"
-          remove-haskell: "true"
-        if: matrix.operating-system == 'ubuntu-latest'
-
       - uses: actions/checkout@v4.1.6
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
+
       - name: go mod tidy
         run: |
           go mod tidy
@@ -46,7 +42,7 @@ jobs:
         id: lint
         uses: golangci/golangci-lint-action@v6.0.1
         with:
-          version: v1.58
+          version: v1.59
           args: --verbose --out-format=line-number
         if: matrix.operating-system == 'ubuntu-latest'
 
@@ -85,11 +81,28 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Install tools
         uses: aquaproj/aqua-installer@v3.0.1
         with:
           aqua_version: v1.25.0
+
+      - name: Generate image list digest
+        id: image-digest
+        run: |
+          source integration/testimages.ini
+          IMAGE_LIST=$(skopeo list-tags docker://$TEST_IMAGES)
+          DIGEST=$(echo "$IMAGE_LIST" | sha256sum | cut -d' ' -f1)
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Restore test images from cache
+        uses: actions/cache/restore@v4
+        with:
+          path: integration/testdata/fixtures/images
+          key: cache-test-images-${{ steps.image-digest.outputs.digest }}
+          restore-keys:
+            cache-test-images-
 
       - name: Run integration tests
         run: mage test:integration
@@ -98,15 +111,6 @@ jobs:
     name: K8s Integration Test
     runs-on: ubuntu-latest
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@v10
-        with:
-          root-reserve-mb: 32768 # The Go cache (`~/.cache/go-build` and `~/go/pkg`) requires a lot of storage space.
-          remove-android: "true"
-          remove-docker-images: "true"
-          remove-dotnet: "true"
-          remove-haskell: "true"
-
       - name: Check out code into the Go module directory
         uses: actions/checkout@v4.1.6
 
@@ -114,6 +118,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Install tools
         uses: aquaproj/aqua-installer@v3.0.1
@@ -134,11 +139,28 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Install tools
         uses: aquaproj/aqua-installer@v3.0.1
         with:
           aqua_version: v1.25.0
+
+      - name: Generate image list digest
+        id: image-digest
+        run: |
+          source integration/testimages.ini
+          IMAGE_LIST=$(skopeo list-tags docker://$TEST_IMAGES)
+          DIGEST=$(echo "$IMAGE_LIST" | sha256sum | cut -d' ' -f1)
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Restore test images from cache
+        uses: actions/cache/restore@v4
+        with:
+          path: integration/testdata/fixtures/images
+          key: cache-test-images-${{ steps.image-digest.outputs.digest }}
+          restore-keys:
+            cache-test-images-
 
       - name: Run module integration tests
         shell: bash
@@ -149,15 +171,6 @@ jobs:
     name: VM Integration Test
     runs-on: ubuntu-latest
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@v10
-        with:
-          root-reserve-mb: 32768 # The Go cache (`~/.cache/go-build` and `~/go/pkg`) requires a lot of storage space.
-          remove-android: 'true'
-          remove-docker-images: 'true'
-          remove-dotnet: 'true'
-          remove-haskell: 'true'
-
       - name: Checkout
         uses: actions/checkout@v4.1.6
 
@@ -165,10 +178,29 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
+
       - name: Install tools
         uses: aquaproj/aqua-installer@v3.0.1
         with:
           aqua_version: v1.25.0
+
+      - name: Generate image list digest
+        id: image-digest
+        run: |
+          source integration/testimages.ini
+          IMAGE_LIST=$(skopeo list-tags docker://$TEST_VM_IMAGES)
+          DIGEST=$(echo "$IMAGE_LIST" | sha256sum | cut -d' ' -f1)
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Restore test VM images from cache
+        uses: actions/cache/restore@v4
+        with:
+          path: integration/testdata/fixtures/vm-images
+          key: cache-test-vm-images-${{ steps.image-digest.outputs.digest }}
+          restore-keys:
+            cache-test-vm-images-
+
       - name: Run vm integration tests
         run: |
           mage test:vm
@@ -182,16 +214,6 @@ jobs:
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
-    - name: Maximize build space
-      uses: easimon/maximize-build-space@v10
-      with:
-        root-reserve-mb: 32768 # The Go cache (`~/.cache/go-build` and `~/go/pkg`) requires a lot of storage space.
-        remove-android: 'true'
-        remove-docker-images: 'true'
-        remove-dotnet: 'true'
-        remove-haskell: 'true'
-      if: matrix.operating-system == 'ubuntu-latest'
-
     - name: Checkout
       uses: actions/checkout@v4.1.6
 
@@ -199,6 +221,7 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
+        cache: false
 
     - name: Determine GoReleaser ID
       id: goreleaser_id
@@ -213,7 +236,7 @@ jobs:
         fi
 
     - name: Run GoReleaser
-      uses: goreleaser/goreleaser-action@v5
+      uses: goreleaser/goreleaser-action@v6
       with:
-        version: v1.20.0
+        version: v2.1.0
         args: build --snapshot --clean --timeout 90m ${{ steps.goreleaser_id.outputs.id }}

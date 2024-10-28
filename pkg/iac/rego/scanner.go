@@ -15,60 +15,72 @@ import (
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/util"
 
-	"github.com/aquasecurity/trivy/pkg/iac/debug"
 	"github.com/aquasecurity/trivy/pkg/iac/framework"
+	"github.com/aquasecurity/trivy/pkg/iac/providers"
 	"github.com/aquasecurity/trivy/pkg/iac/rego/schemas"
 	"github.com/aquasecurity/trivy/pkg/iac/scan"
 	"github.com/aquasecurity/trivy/pkg/iac/scanners/options"
 	"github.com/aquasecurity/trivy/pkg/iac/types"
+	"github.com/aquasecurity/trivy/pkg/log"
 )
+
+var checkTypesWithSubtype = map[types.Source]struct{}{
+	types.SourceCloud:      {},
+	types.SourceDefsec:     {},
+	types.SourceKubernetes: {},
+}
+
+var supportedProviders = makeSupportedProviders()
+
+func makeSupportedProviders() map[string]struct{} {
+	m := make(map[string]struct{})
+	for _, p := range providers.AllProviders() {
+		m[string(p)] = struct{}{}
+	}
+	m["kind"] = struct{}{} // kubernetes
+	return m
+}
 
 var _ options.ConfigurableScanner = (*Scanner)(nil)
 
 type Scanner struct {
-	ruleNamespaces          map[string]struct{}
-	policies                map[string]*ast.Module
-	store                   storage.Store
-	dataDirs                []string
-	runtimeValues           *ast.Term
-	compiler                *ast.Compiler
-	regoErrorLimit          int
-	debug                   debug.Logger
-	traceWriter             io.Writer
-	tracePerResult          bool
-	retriever               *MetadataRetriever
-	policyFS                fs.FS
-	dataFS                  fs.FS
-	frameworks              []framework.Framework
-	spec                    string
-	inputSchema             any // unmarshalled into this from a json schema document
-	sourceType              types.Source
-	includeDeprecatedChecks bool
+	ruleNamespaces           map[string]struct{}
+	policies                 map[string]*ast.Module
+	store                    storage.Store
+	runtimeValues            *ast.Term
+	compiler                 *ast.Compiler
+	regoErrorLimit           int
+	logger                   *log.Logger
+	traceWriter              io.Writer
+	tracePerResult           bool
+	retriever                *MetadataRetriever
+	policyFS                 fs.FS
+	policyDirs               []string
+	policyReaders            []io.Reader
+	dataFS                   fs.FS
+	dataDirs                 []string
+	frameworks               []framework.Framework
+	inputSchema              any // unmarshalled into this from a json schema document
+	sourceType               types.Source
+	includeDeprecatedChecks  bool
+	includeEmbeddedPolicies  bool
+	includeEmbeddedLibraries bool
 
 	embeddedLibs   map[string]*ast.Module
 	embeddedChecks map[string]*ast.Module
+	customSchemas  map[string][]byte
+
+	disabledCheckIDs map[string]struct{}
 }
 
 func (s *Scanner) SetIncludeDeprecatedChecks(b bool) {
 	s.includeDeprecatedChecks = b
 }
 
-func (s *Scanner) SetUseEmbeddedLibraries(b bool) {
-	// handled externally
-}
-
-func (s *Scanner) SetSpec(spec string) {
-	s.spec = spec
-}
-
 func (s *Scanner) SetRegoOnly(bool) {}
 
 func (s *Scanner) SetFrameworks(frameworks []framework.Framework) {
 	s.frameworks = frameworks
-}
-
-func (s *Scanner) SetUseEmbeddedPolicies(b bool) {
-	// handled externally
 }
 
 func (s *Scanner) trace(heading string, input any) {
@@ -82,52 +94,6 @@ func (s *Scanner) trace(heading string, input any) {
 	_, _ = fmt.Fprintf(s.traceWriter, "REGO %[1]s:\n%s\nEND REGO %[1]s\n\n", heading, string(data))
 }
 
-func (s *Scanner) SetPolicyFilesystem(fsys fs.FS) {
-	s.policyFS = fsys
-}
-
-func (s *Scanner) SetDataFilesystem(fsys fs.FS) {
-	s.dataFS = fsys
-}
-
-func (s *Scanner) SetPolicyReaders(_ []io.Reader) {
-	// NOTE: Policy readers option not applicable for rego, policies are loaded on-demand by other scanners.
-}
-
-func (s *Scanner) SetDebugWriter(writer io.Writer) {
-	s.debug = debug.New(writer, "rego", "scanner")
-}
-
-func (s *Scanner) SetTraceWriter(writer io.Writer) {
-	s.traceWriter = writer
-}
-
-func (s *Scanner) SetPerResultTracingEnabled(b bool) {
-	s.tracePerResult = b
-}
-
-func (s *Scanner) SetPolicyDirs(_ ...string) {
-	// NOTE: Policy dirs option not applicable for rego, policies are loaded on-demand by other scanners.
-}
-
-func (s *Scanner) SetDataDirs(dirs ...string) {
-	s.dataDirs = dirs
-}
-
-func (s *Scanner) SetPolicyNamespaces(namespaces ...string) {
-	for _, namespace := range namespaces {
-		s.ruleNamespaces[namespace] = struct{}{}
-	}
-}
-
-func (s *Scanner) SetSkipRequiredCheck(_ bool) {
-	// NOTE: Skip required option not applicable for rego.
-}
-
-func (s *Scanner) SetRegoErrorLimit(limit int) {
-	s.regoErrorLimit = limit
-}
-
 type DynamicMetadata struct {
 	Warning   bool
 	Filepath  string
@@ -137,16 +103,21 @@ type DynamicMetadata struct {
 }
 
 func NewScanner(source types.Source, opts ...options.ScannerOption) *Scanner {
+	LoadAndRegister()
+
 	schema, ok := schemas.SchemaMap[source]
 	if !ok {
 		schema = schemas.Anything
 	}
 
 	s := &Scanner{
-		regoErrorLimit: ast.CompileErrorLimitDefault,
-		sourceType:     source,
-		ruleNamespaces: make(map[string]struct{}),
-		runtimeValues:  addRuntimeValues(),
+		regoErrorLimit:   ast.CompileErrorLimitDefault,
+		sourceType:       source,
+		ruleNamespaces:   make(map[string]struct{}),
+		runtimeValues:    addRuntimeValues(),
+		logger:           log.WithPrefix("rego"),
+		customSchemas:    make(map[string][]byte),
+		disabledCheckIDs: make(map[string]struct{}),
 	}
 
 	maps.Copy(s.ruleNamespaces, builtinNamespaces)
@@ -161,10 +132,6 @@ func NewScanner(source types.Source, opts ...options.ScannerOption) *Scanner {
 		}
 	}
 	return s
-}
-
-func (s *Scanner) SetParentDebugLogger(l debug.Logger) {
-	s.debug = l.Extend("rego")
 }
 
 func (s *Scanner) runQuery(ctx context.Context, query string, input ast.Value, disableTracing bool) (rego.ResultSet, []string, error) {
@@ -227,7 +194,7 @@ func GetInputsContents(inputs []Input) []any {
 
 func (s *Scanner) ScanInput(ctx context.Context, inputs ...Input) (scan.Results, error) {
 
-	s.debug.Log("Scanning %d inputs...", len(inputs))
+	s.logger.Debug("Scanning inputs", "count", len(inputs))
 
 	var results scan.Results
 
@@ -247,9 +214,11 @@ func (s *Scanner) ScanInput(ctx context.Context, inputs ...Input) (scan.Results,
 
 		staticMeta, err := s.retriever.RetrieveMetadata(ctx, module, GetInputsContents(inputs)...)
 		if err != nil {
-			s.debug.Log(
-				"Error occurred while retrieving metadata from check %q: %s",
-				module.Package.Location.File, err)
+			s.logger.Error(
+				"Error occurred while retrieving metadata from check",
+				log.FilePath(module.Package.Location.File),
+				log.Err(err),
+			)
 			continue
 		}
 
@@ -280,9 +249,12 @@ func (s *Scanner) ScanInput(ctx context.Context, inputs ...Input) (scan.Results,
 			if isEnforcedRule(ruleName) {
 				ruleResults, err := s.applyRule(ctx, namespace, ruleName, inputs, staticMeta.InputOptions.Combined)
 				if err != nil {
-					s.debug.Log(
-						"Error occurred while applying rule %q from check %q: %s",
-						ruleName, module.Package.Location.File, err)
+					s.logger.Error(
+						"Error occurred while applying rule from check",
+						log.String("rule", ruleName),
+						log.FilePath(module.Package.Location.File),
+						log.Err(err),
+					)
 					continue
 				}
 				results = append(results, s.embellishResultsWithRuleMetadata(ruleResults, *staticMeta)...)
@@ -295,12 +267,8 @@ func (s *Scanner) ScanInput(ctx context.Context, inputs ...Input) (scan.Results,
 }
 
 func isPolicyWithSubtype(sourceType types.Source) bool {
-	for _, s := range []types.Source{types.SourceCloud, types.SourceDefsec, types.SourceKubernetes} {
-		if sourceType == s {
-			return true
-		}
-	}
-	return false
+	_, exists := checkTypesWithSubtype[sourceType]
+	return exists
 }
 
 func checkSubtype(ii map[string]any, provider string, subTypes []SubType) bool {
@@ -311,10 +279,11 @@ func checkSubtype(ii map[string]any, provider string, subTypes []SubType) bool {
 	for _, st := range subTypes {
 		switch services := ii[provider].(type) {
 		case map[string]any:
-			for service := range services {
-				if (service == st.Service) && (st.Provider == provider) {
-					return true
-				}
+			if st.Provider != provider {
+				continue
+			}
+			if _, exists := services[st.Service]; exists {
+				return true
 			}
 		case string: // k8s - logic can be improved
 			if strings.EqualFold(services, st.Group) ||
@@ -331,8 +300,7 @@ func isPolicyApplicable(staticMetadata *StaticMetadata, inputs ...Input) bool {
 	for _, input := range inputs {
 		if ii, ok := input.Contents.(map[string]any); ok {
 			for provider := range ii {
-				// TODO(simar): Add other providers
-				if !strings.Contains(strings.Join([]string{"kind", "aws", "azure"}, ","), provider) {
+				if _, exists := supportedProviders[provider]; !exists {
 					continue
 				}
 
@@ -374,7 +342,7 @@ func (s *Scanner) applyRule(ctx context.Context, namespace, rule string, inputs 
 		s.trace("INPUT", input)
 		parsedInput, err := parseRawInput(input.Contents)
 		if err != nil {
-			s.debug.Log("Error occurred while parsing input: %s", err)
+			s.logger.Error("Error occurred while parsing input", log.Err(err))
 			continue
 		}
 		if ignored, err := s.isIgnored(ctx, namespace, rule, parsedInput); err != nil {

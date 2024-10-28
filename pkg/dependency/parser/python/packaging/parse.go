@@ -7,10 +7,10 @@ import (
 	"net/textproto"
 	"strings"
 
-	"github.com/samber/lo"
 	"golang.org/x/xerrors"
 
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/licensing"
 	"github.com/aquasecurity/trivy/pkg/log"
 	xio "github.com/aquasecurity/trivy/pkg/x/io"
 )
@@ -80,14 +80,14 @@ func (p *Parser) Parse(r xio.ReadSeekerAt) ([]ftypes.Package, []ftypes.Dependenc
 	}
 
 	if license == "" && h.Get("License-File") != "" {
-		license = "file://" + h.Get("License-File")
+		license = licensing.LicenseFilePrefix + h.Get("License-File")
 	}
 
 	return []ftypes.Package{
 		{
 			Name:     name,
 			Version:  version,
-			Licenses: lo.Ternary(license != "", []string{license}, nil),
+			Licenses: licensing.SplitLicenses(license),
 		},
 	}, nil, nil
 }

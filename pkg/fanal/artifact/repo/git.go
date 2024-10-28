@@ -12,9 +12,9 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
 
+	"github.com/aquasecurity/trivy/pkg/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
-	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/walker"
 )
 
@@ -128,7 +128,7 @@ func cloneRepo(u *url.URL, artifactOpt artifact.Option) (string, error) {
 	cloneOptions := git.CloneOptions{
 		URL:             u.String(),
 		Auth:            gitAuth(),
-		Progress:        os.Stdout,
+		Progress:        os.Stderr,
 		InsecureSkipTLS: artifactOpt.Insecure,
 	}
 

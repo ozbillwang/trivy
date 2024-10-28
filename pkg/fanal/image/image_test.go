@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -16,36 +15,37 @@ import (
 	"github.com/aquasecurity/testdocker/auth"
 	"github.com/aquasecurity/testdocker/engine"
 	"github.com/aquasecurity/testdocker/registry"
+	"github.com/aquasecurity/testdocker/tarfile"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 )
 
-func setupEngineAndRegistry() (*httptest.Server, *httptest.Server) {
+func setupEngineAndRegistry(t *testing.T) (*httptest.Server, *httptest.Server) {
 	imagePaths := map[string]string{
 		"alpine:3.10":  "../test/testdata/alpine-310.tar.gz",
 		"alpine:3.11":  "../test/testdata/alpine-311.tar.gz",
 		"a187dde48cd2": "../test/testdata/alpine-311.tar.gz",
 	}
 	opt := engine.Option{
-		APIVersion: "1.38",
+		APIVersion: "1.45",
 		ImagePaths: imagePaths,
 	}
 	te := engine.NewDockerEngine(opt)
 
-	imagePaths = map[string]string{
-		"v2/library/alpine:3.10": "../test/testdata/alpine-310.tar.gz",
+	images := map[string]v1.Image{
+		"v2/library/alpine:3.10": localImage(t),
 	}
 	tr := registry.NewDockerRegistry(registry.Option{
-		Images: imagePaths,
+		Images: images,
 		Auth:   auth.Auth{},
 	})
 
-	os.Setenv("DOCKER_HOST", fmt.Sprintf("tcp://%s", te.Listener.Addr().String()))
+	t.Setenv("DOCKER_HOST", fmt.Sprintf("tcp://%s", te.Listener.Addr().String()))
 
 	return te, tr
 }
 
 func TestNewDockerImage(t *testing.T) {
-	te, tr := setupEngineAndRegistry()
+	te, tr := setupEngineAndRegistry(t)
 	defer func() {
 		te.Close()
 		tr.Close()
@@ -74,7 +74,6 @@ func TestNewDockerImage(t *testing.T) {
 			wantRepoTags: []string{"alpine:3.11"},
 			wantConfigFile: &v1.ConfigFile{
 				Architecture:  "amd64",
-				Container:     "fb71ddde5f6411a82eb056a9190f0cc1c80d7f77a8509ee90a2054428edb0024",
 				OS:            "linux",
 				Created:       v1.Time{Time: time.Date(2020, 3, 23, 21, 19, 34, 196162891, time.UTC)},
 				DockerVersion: "18.09.7",
@@ -118,7 +117,6 @@ func TestNewDockerImage(t *testing.T) {
 			wantRepoTags: []string{"alpine:3.11"},
 			wantConfigFile: &v1.ConfigFile{
 				Architecture:  "amd64",
-				Container:     "fb71ddde5f6411a82eb056a9190f0cc1c80d7f77a8509ee90a2054428edb0024",
 				OS:            "linux",
 				Created:       v1.Time{Time: time.Date(2020, 3, 23, 21, 19, 34, 196162891, time.UTC)},
 				DockerVersion: "18.09.7",
@@ -303,12 +301,12 @@ func TestNewDockerImage(t *testing.T) {
 	}
 }
 
-func setupPrivateRegistry() *httptest.Server {
-	imagePaths := map[string]string{
-		"v2/library/alpine:3.10": "../test/testdata/alpine-310.tar.gz",
+func setupPrivateRegistry(t *testing.T) *httptest.Server {
+	images := map[string]v1.Image{
+		"v2/library/alpine:3.10": localImage(t),
 	}
 	tr := registry.NewDockerRegistry(registry.Option{
-		Images: imagePaths,
+		Images: images,
 		Auth: auth.Auth{
 			User:     "test",
 			Password: "testpass",
@@ -320,7 +318,7 @@ func setupPrivateRegistry() *httptest.Server {
 }
 
 func TestNewDockerImageWithPrivateRegistry(t *testing.T) {
-	tr := setupPrivateRegistry()
+	tr := setupPrivateRegistry(t)
 	defer tr.Close()
 
 	serverAddr := tr.Listener.Addr().String()
@@ -505,7 +503,7 @@ func TestNewArchiveImage(t *testing.T) {
 }
 
 func TestDockerPlatformArguments(t *testing.T) {
-	tr := setupPrivateRegistry()
+	tr := setupPrivateRegistry(t)
 	defer tr.Close()
 
 	serverAddr := tr.Listener.Addr().String()
@@ -556,4 +554,10 @@ func TestDockerPlatformArguments(t *testing.T) {
 			}
 		})
 	}
+}
+
+func localImage(t *testing.T) v1.Image {
+	img, err := tarfile.ImageFromPath("../test/testdata/alpine-310.tar.gz")
+	require.NoError(t, err)
+	return img
 }

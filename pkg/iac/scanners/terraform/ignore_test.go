@@ -1,15 +1,20 @@
 package terraform
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/aquasecurity/trivy/internal/testutil"
 	"github.com/aquasecurity/trivy/pkg/iac/providers"
+	"github.com/aquasecurity/trivy/pkg/iac/rego"
 	"github.com/aquasecurity/trivy/pkg/iac/rules"
 	"github.com/aquasecurity/trivy/pkg/iac/scan"
+	"github.com/aquasecurity/trivy/pkg/iac/scanners/options"
 	"github.com/aquasecurity/trivy/pkg/iac/severity"
 	"github.com/aquasecurity/trivy/pkg/iac/terraform"
 )
@@ -442,6 +447,21 @@ resource "bad" "my-rule" {
 			assertLength: 0,
 		},
 		{
+			name: "ignore by indexed dynamic block value",
+			inputOptions: `
+// trivy:ignore:*[secure_settings.0.enabled=false]
+resource "bad" "my-rule" {
+  dynamic "secure_settings" {
+    for_each = ["false", "true"]
+    content {
+      enabled = secure_settings.value
+    }
+  }
+}
+`,
+			assertLength: 0,
+		},
+		{
 			name: "TrivyIgnoreLineStackedAboveTheBlock",
 			inputOptions: `
 // trivy:ignore:*
@@ -603,6 +623,154 @@ data "aws_iam_policy_document" "test_policy" {
 `,
 			assertLength: 0,
 		},
+		{
+			name: "ignore by each.value",
+			inputOptions: `
+// trivy:ignore:*[each.value=false]
+resource "bad" "my-rule" {
+  for_each = toset(["false", "true", "false"])
+  secure   = each.value
+}
+`,
+			assertLength: 0,
+		},
+		{
+			name: "ignore by nested each.value",
+			inputOptions: `
+locals {
+  vms = [
+    {
+      ip_address = "10.0.0.1"
+      name       = "vm-1"
+    },
+    {
+      ip_address = "10.0.0.2"
+      name       = "vm-2"
+    }
+  ]
+}
+// trivy:ignore:*[each.value.name=vm-2]
+resource "bad" "my-rule" {
+  secure = false
+  for_each   = { for vm in local.vms : vm.name => vm }
+  ip_address = each.value.ip_address
+}
+`,
+			assertLength: 1,
+		},
+		{
+			name: "ignore resource with `count` meta-argument",
+			inputOptions: `
+// trivy:ignore:*[count.index=1]
+resource "bad" "my-rule" {
+  count = 2
+  secure = false
+}
+`,
+			assertLength: 1,
+		},
+		{
+			name: "invalid index when accessing blocks",
+			inputOptions: `
+// trivy:ignore:*[ingress.99.port=9090]
+// trivy:ignore:*[ingress.-10.port=9090]
+resource "bad" "my-rule" {
+  secure = false
+  dynamic "ingress" {
+    for_each = [8080, 9090]
+    content {
+      port = ingress.value
+    }
+  }
+}
+`,
+			assertLength: 1,
+		},
+		{
+			name: "ignore by list value",
+			inputOptions: `
+#trivy:ignore:*[someattr.1.Environment=dev]
+resource "bad" "my-rule" {
+  secure = false
+  someattr = [
+	{
+		Environment = "prod"
+	},
+	{
+		Environment = "dev"
+	}
+  ]
+}
+`,
+			assertLength: 0,
+		},
+		{
+			name: "ignore by list value with invalid index",
+			inputOptions: `
+#trivy:ignore:*[someattr.-2.Environment=dev]
+resource "bad" "my-rule" {
+  secure = false
+  someattr = [
+	{
+		Environment = "prod"
+	},
+	{
+		Environment = "dev"
+	}
+  ]
+}
+`,
+			assertLength: 1,
+		},
+		{
+			name: "ignore by object value",
+			inputOptions: `
+#trivy:ignore:*[tags.Environment=dev]
+resource "bad" "my-rule" {
+  secure = false
+  tags = {
+    Environment = "dev"
+  }
+}
+`,
+			assertLength: 0,
+		},
+		{
+			name: "ignore by object value in block",
+			inputOptions: `
+#trivy:ignore:*[someblock.tags.Environment=dev]
+resource "bad" "my-rule" {
+  secure = false
+  someblock {
+	tags = {
+	  Environment = "dev"
+	}
+  }
+}
+`,
+			assertLength: 0,
+		},
+		{
+			name: "ignore by list value in map",
+			inputOptions: `
+variable "testvar" {
+  type = map(list(string))
+  default = {
+    server1 = ["web", "dev"]
+    server2 = ["prod"]
+  }
+}
+
+#trivy:ignore:*[someblock.someattr.server1.1=dev]
+resource "bad" "my-rule" {
+  secure = false
+  someblock {
+	someattr = var.testvar
+  }
+}
+`,
+			assertLength: 0,
+		},
 	}
 
 	reg := rules.Register(exampleRule)
@@ -747,4 +915,57 @@ func Test_IgnoreInlineByAVDID(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestIgnoreRemoteTerraformResource(t *testing.T) {
+
+	fsys := testutil.CreateFS(t, map[string]string{
+		"main.tf": `module "bucket" {
+  source = "git::https://github.com/test/bucket"
+}`,
+		".terraform/modules/modules.json": `{
+    "Modules": [
+        { "Key": "", "Source": "", "Dir": "." },
+        {
+            "Key": "bucket",
+            "Source": "git::https://github.com/test/bucket",
+            "Dir": ".terraform/modules/bucket"
+        }
+    ]
+}
+`,
+		".terraform/modules/bucket/main.tf": `
+# trivy:ignore:test-0001
+resource "aws_s3_bucket" "test" {
+  bucket = ""
+}
+`,
+	})
+
+	check := `# METADATA
+# title: Test
+# custom:
+#   id: test-0001
+#   avdid: test-0001
+
+package user.test0001
+
+deny[res] {
+	bucket := input.aws.s3.buckets[_]
+	bucket.name.value == ""
+	res := result.new("Empty bucket name!", bucket)
+}`
+
+	localScanner := New(
+		rego.WithEmbeddedPolicies(false),
+		rego.WithEmbeddedLibraries(true),
+		options.ScannerWithRegoOnly(true),
+		rego.WithPolicyNamespaces("user"),
+		rego.WithPolicyReader(strings.NewReader(check)),
+		ScannerWithDownloadsAllowed(false),
+		ScannerWithSkipCachedModules(true),
+	)
+	results, err := localScanner.ScanFS(context.TODO(), fsys, ".")
+	require.NoError(t, err)
+	assert.Empty(t, results.GetFailed())
 }

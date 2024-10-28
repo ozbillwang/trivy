@@ -3,6 +3,7 @@ package io_test
 import (
 	"testing"
 
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/package-url/packageurl-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,13 @@ func TestEncoder_Encode(t *testing.T) {
 					RepoDigests: []string{
 						"debian@sha256:4482958b4461ff7d9fabc24b3a9ab1e9a2c85ece07b2db1840c7cbc01d053e90",
 					},
+					ImageConfig: v1.ConfigFile{
+						Config: v1.Config{
+							Labels: map[string]string{
+								"vendor": "aquasecurity",
+							},
+						},
+					},
 				},
 				Results: []types.Result{
 					{
@@ -55,6 +63,7 @@ func TestEncoder_Encode(t *testing.T) {
 								Name:    "libc6",
 								Version: "2.37-15.1",
 								Identifier: ftypes.PkgIdentifier{
+									UID: "33654D2C483FC3AD",
 									PURL: &packageurl.PackageURL{
 										Type:    packageurl.TypeDebian,
 										Name:    "libc6",
@@ -67,6 +76,7 @@ func TestEncoder_Encode(t *testing.T) {
 								Name:    "curl",
 								Version: "7.50.3-1",
 								Identifier: ftypes.PkgIdentifier{
+									UID: "51BA9E006222819D",
 									PURL: &packageurl.PackageURL{
 										Type:    packageurl.TypeDebian,
 										Name:    "curl",
@@ -88,6 +98,9 @@ func TestEncoder_Encode(t *testing.T) {
 								Vulnerability: dtypes.Vulnerability{
 									Severity: "HIGH",
 								},
+								PkgIdentifier: ftypes.PkgIdentifier{
+									UID: "51BA9E006222819D",
+								},
 							},
 						},
 					},
@@ -97,17 +110,63 @@ func TestEncoder_Encode(t *testing.T) {
 						Class:  types.ClassLangPkg,
 						Packages: []ftypes.Package{
 							{
-								ID:       "org.apache.xmlgraphics/batik-anim:1.9.1",
-								Name:     "org.apache.xmlgraphics/batik-anim",
-								Version:  "1.9.1",
-								FilePath: "/app/batik-anim-1.9.1.jar",
+								ID:       "com.fasterxml.jackson.core:jackson-databind:2.13.4",
+								Name:     "com.fasterxml.jackson.core:jackson-databind",
+								Version:  "2.13.4",
+								FilePath: "/foo/jackson-databind-2.13.4.jar",
 								Identifier: ftypes.PkgIdentifier{
+									UID: "A6BD5A2FE5C00E10",
 									PURL: &packageurl.PackageURL{
 										Type:      packageurl.TypeMaven,
-										Namespace: "org.apache.xmlgraphics",
-										Name:      "batik-anim",
-										Version:   "1.9.1",
+										Namespace: "com.fasterxml.jackson.core",
+										Name:      "jackson-databind",
+										Version:   "2.13.4",
 									},
+								},
+							},
+							{
+								ID:       "com.fasterxml.jackson.core:jackson-databind:2.13.4",
+								Name:     "com.fasterxml.jackson.core:jackson-databind",
+								Version:  "2.13.4",
+								FilePath: "/bar/jackson-databind-2.13.4.jar",
+								Identifier: ftypes.PkgIdentifier{
+									UID: "64244651208EC759",
+									PURL: &packageurl.PackageURL{
+										Type:      packageurl.TypeMaven,
+										Namespace: "com.fasterxml.jackson.core",
+										Name:      "jackson-databind",
+										Version:   "2.13.4",
+									},
+								},
+							},
+						},
+						Vulnerabilities: []types.DetectedVulnerability{
+							{
+								PkgName:          "com.fasterxml.jackson.core:jackson-databind",
+								PkgID:            "com.fasterxml.jackson.core:jackson-databind:2.13.4",
+								VulnerabilityID:  "CVE-2022-42003",
+								InstalledVersion: "2.13.4",
+								FixedVersion:     "2.12.7.1, 2.13.4.2",
+								PkgPath:          "/foo/jackson-databind-2.13.4.jar",
+								Vulnerability: dtypes.Vulnerability{
+									Severity: "HIGH",
+								},
+								PkgIdentifier: ftypes.PkgIdentifier{
+									UID: "A6BD5A2FE5C00E10",
+								},
+							},
+							{
+								PkgName:          "com.fasterxml.jackson.core:jackson-databind",
+								PkgID:            "com.fasterxml.jackson.core:jackson-databind:2.13.4",
+								VulnerabilityID:  "CVE-2022-42003",
+								InstalledVersion: "2.13.4",
+								FixedVersion:     "2.12.7.1, 2.13.4.2",
+								PkgPath:          "/bar/jackson-databind-2.13.4.jar",
+								Vulnerability: dtypes.Vulnerability{
+									Severity: "HIGH",
+								},
+								PkgIdentifier: ftypes.PkgIdentifier{
+									UID: "64244651208EC759",
 								},
 							},
 						},
@@ -134,6 +193,10 @@ func TestEncoder_Encode(t *testing.T) {
 						BOMRef: "pkg:oci/debian@sha256%3A4482958b4461ff7d9fabc24b3a9ab1e9a2c85ece07b2db1840c7cbc01d053e90?repository_url=index.docker.io%2Flibrary%2Fdebian",
 					},
 					Properties: []core.Property{
+						{
+							Name:  "Labels:vendor",
+							Value: "aquasecurity",
+						},
 						{
 							Name:  core.PropertyRepoDigest,
 							Value: "debian@sha256:4482958b4461ff7d9fabc24b3a9ab1e9a2c85ece07b2db1840c7cbc01d053e90",
@@ -185,6 +248,7 @@ func TestEncoder_Encode(t *testing.T) {
 						},
 					},
 					PkgIdentifier: ftypes.PkgIdentifier{
+						UID: "33654D2C483FC3AD",
 						PURL: &packageurl.PackageURL{
 							Type:    packageurl.TypeDebian,
 							Name:    "libc6",
@@ -208,6 +272,7 @@ func TestEncoder_Encode(t *testing.T) {
 						},
 					},
 					PkgIdentifier: ftypes.PkgIdentifier{
+						UID: "51BA9E006222819D",
 						PURL: &packageurl.PackageURL{
 							Type:    packageurl.TypeDebian,
 							Name:    "curl",
@@ -218,22 +283,22 @@ func TestEncoder_Encode(t *testing.T) {
 				},
 				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000005"): {
 					Type:    core.TypeLibrary,
-					Group:   "org.apache.xmlgraphics",
-					Name:    "batik-anim",
-					Version: "1.9.1",
+					Group:   "com.fasterxml.jackson.core",
+					Name:    "jackson-databind",
+					Version: "2.13.4",
 					Files: []core.File{
 						{
-							Path: "/app/batik-anim-1.9.1.jar",
+							Path: "/foo/jackson-databind-2.13.4.jar",
 						},
 					},
 					Properties: []core.Property{
 						{
 							Name:  core.PropertyFilePath,
-							Value: "/app/batik-anim-1.9.1.jar",
+							Value: "/foo/jackson-databind-2.13.4.jar",
 						},
 						{
 							Name:  core.PropertyPkgID,
-							Value: "org.apache.xmlgraphics/batik-anim:1.9.1",
+							Value: "com.fasterxml.jackson.core:jackson-databind:2.13.4",
 						},
 						{
 							Name:  core.PropertyPkgType,
@@ -241,13 +306,49 @@ func TestEncoder_Encode(t *testing.T) {
 						},
 					},
 					PkgIdentifier: ftypes.PkgIdentifier{
+						UID: "A6BD5A2FE5C00E10",
 						PURL: &packageurl.PackageURL{
 							Type:      packageurl.TypeMaven,
-							Namespace: "org.apache.xmlgraphics",
-							Name:      "batik-anim",
-							Version:   "1.9.1",
+							Namespace: "com.fasterxml.jackson.core",
+							Name:      "jackson-databind",
+							Version:   "2.13.4",
 						},
-						BOMRef: "pkg:maven/org.apache.xmlgraphics/batik-anim@1.9.1",
+						BOMRef: "3ff14136-e09f-4df9-80ea-000000000005",
+					},
+				},
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000006"): {
+					Type:    core.TypeLibrary,
+					Group:   "com.fasterxml.jackson.core",
+					Name:    "jackson-databind",
+					Version: "2.13.4",
+					Files: []core.File{
+						{
+							Path: "/bar/jackson-databind-2.13.4.jar",
+						},
+					},
+					Properties: []core.Property{
+						{
+							Name:  core.PropertyFilePath,
+							Value: "/bar/jackson-databind-2.13.4.jar",
+						},
+						{
+							Name:  core.PropertyPkgID,
+							Value: "com.fasterxml.jackson.core:jackson-databind:2.13.4",
+						},
+						{
+							Name:  core.PropertyPkgType,
+							Value: "jar",
+						},
+					},
+					PkgIdentifier: ftypes.PkgIdentifier{
+						UID: "64244651208EC759",
+						PURL: &packageurl.PackageURL{
+							Type:      packageurl.TypeMaven,
+							Namespace: "com.fasterxml.jackson.core",
+							Name:      "jackson-databind",
+							Version:   "2.13.4",
+						},
+						BOMRef: "3ff14136-e09f-4df9-80ea-000000000006",
 					},
 				},
 			},
@@ -259,6 +360,10 @@ func TestEncoder_Encode(t *testing.T) {
 					},
 					{
 						Dependency: uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000005"),
+						Type:       core.RelationshipContains,
+					},
+					{
+						Dependency: uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000006"),
 						Type:       core.RelationshipContains,
 					},
 				},
@@ -280,15 +385,37 @@ func TestEncoder_Encode(t *testing.T) {
 					},
 				},
 				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000005"): nil,
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000006"): nil,
 			},
 			wantVulns: map[uuid.UUID][]core.Vulnerability{
 				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000004"): {
 					{
 						ID:               "CVE-2021-22876",
-						PkgID:            "curl@7.50.3-1",
 						PkgName:          "curl",
 						InstalledVersion: "7.50.3-1",
 						FixedVersion:     "7.50.3-1+deb9u1",
+						Vulnerability: dtypes.Vulnerability{
+							Severity: "HIGH",
+						},
+					},
+				},
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000005"): {
+					{
+						ID:               "CVE-2022-42003",
+						PkgName:          "com.fasterxml.jackson.core:jackson-databind",
+						InstalledVersion: "2.13.4",
+						FixedVersion:     "2.12.7.1, 2.13.4.2",
+						Vulnerability: dtypes.Vulnerability{
+							Severity: "HIGH",
+						},
+					},
+				},
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000006"): {
+					{
+						ID:               "CVE-2022-42003",
+						PkgName:          "com.fasterxml.jackson.core:jackson-databind",
+						InstalledVersion: "2.13.4",
+						FixedVersion:     "2.12.7.1, 2.13.4.2",
 						Vulnerability: dtypes.Vulnerability{
 							Severity: "HIGH",
 						},
@@ -312,6 +439,7 @@ func TestEncoder_Encode(t *testing.T) {
 								ID:   "github.com/org/root",
 								Name: "github.com/org/root",
 								Identifier: ftypes.PkgIdentifier{
+									UID: "03D528806D964D22",
 									PURL: &packageurl.PackageURL{
 										Type:      packageurl.TypeGolang,
 										Namespace: "github.com/org",
@@ -328,6 +456,7 @@ func TestEncoder_Encode(t *testing.T) {
 								Name:    "github.com/org/direct",
 								Version: "v1.0.0",
 								Identifier: ftypes.PkgIdentifier{
+									UID: "A74CADAD4D9805FF",
 									PURL: &packageurl.PackageURL{
 										Type:      packageurl.TypeGolang,
 										Namespace: "github.com/org",
@@ -345,6 +474,7 @@ func TestEncoder_Encode(t *testing.T) {
 								Name:    "github.com/org/indirect",
 								Version: "2.0.0",
 								Identifier: ftypes.PkgIdentifier{
+									UID: "955AB4E7E24AC085",
 									PURL: &packageurl.PackageURL{
 										Type:      packageurl.TypeGolang,
 										Namespace: "github.com/org",
@@ -359,6 +489,7 @@ func TestEncoder_Encode(t *testing.T) {
 								Name:    "stdlib",
 								Version: "1.22.1",
 								Identifier: ftypes.PkgIdentifier{
+									UID: "49728B9674E318A6",
 									PURL: &packageurl.PackageURL{
 										Type:    packageurl.TypeGolang,
 										Name:    "stdlib",
@@ -418,6 +549,7 @@ func TestEncoder_Encode(t *testing.T) {
 						},
 					},
 					PkgIdentifier: ftypes.PkgIdentifier{
+						UID: "03D528806D964D22",
 						PURL: &packageurl.PackageURL{
 							Type:      packageurl.TypeGolang,
 							Namespace: "github.com/org",
@@ -442,6 +574,7 @@ func TestEncoder_Encode(t *testing.T) {
 						},
 					},
 					PkgIdentifier: ftypes.PkgIdentifier{
+						UID: "A74CADAD4D9805FF",
 						PURL: &packageurl.PackageURL{
 							Type:      packageurl.TypeGolang,
 							Namespace: "github.com/org",
@@ -467,6 +600,7 @@ func TestEncoder_Encode(t *testing.T) {
 						},
 					},
 					PkgIdentifier: ftypes.PkgIdentifier{
+						UID: "955AB4E7E24AC085",
 						PURL: &packageurl.PackageURL{
 							Type:      packageurl.TypeGolang,
 							Namespace: "github.com/org",
@@ -492,6 +626,7 @@ func TestEncoder_Encode(t *testing.T) {
 						},
 					},
 					PkgIdentifier: ftypes.PkgIdentifier{
+						UID: "49728B9674E318A6",
 						PURL: &packageurl.PackageURL{
 							Type:    packageurl.TypeGolang,
 							Name:    "stdlib",
@@ -532,6 +667,146 @@ func TestEncoder_Encode(t *testing.T) {
 				},
 				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000005"): nil,
 				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000006"): nil,
+			},
+			wantVulns: make(map[uuid.UUID][]core.Vulnerability),
+		},
+		{
+			name: "SBOM file",
+			report: types.Report{
+				SchemaVersion: 2,
+				ArtifactName:  "report.cdx.json",
+				ArtifactType:  artifact.TypeCycloneDX,
+				Results: []types.Result{
+					{
+						Target: "Java",
+						Type:   ftypes.Jar,
+						Class:  types.ClassLangPkg,
+						Packages: []ftypes.Package{
+							{
+								ID:      "org.apache.logging.log4j:log4j-core:2.23.1",
+								Name:    "org.apache.logging.log4j:log4j-core",
+								Version: "2.23.1",
+								Identifier: ftypes.PkgIdentifier{
+									UID: "6C0AE96901617503",
+									PURL: &packageurl.PackageURL{
+										Type:      packageurl.TypeMaven,
+										Namespace: "org.apache.logging.log4j",
+										Name:      "log4j-core",
+										Version:   "2.23.1",
+									},
+								},
+								FilePath: "log4j-core-2.23.1.jar",
+							},
+						},
+					},
+				},
+				BOM: newTestBOM(t),
+			},
+			wantComponents: map[uuid.UUID]*core.Component{
+				uuid.MustParse("2ff14136-e09f-4df9-80ea-000000000001"): appComponent,
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000001"): libComponent,
+			},
+			wantRels: map[uuid.UUID][]core.Relationship{
+				uuid.MustParse("2ff14136-e09f-4df9-80ea-000000000001"): {
+					{
+						Dependency: uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000001"),
+						Type:       core.RelationshipContains,
+					},
+				},
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000001"): nil,
+			},
+			wantVulns: make(map[uuid.UUID][]core.Vulnerability),
+		},
+		{
+			name: "SBOM file without root component",
+			report: types.Report{
+				SchemaVersion: 2,
+				ArtifactName:  "report.cdx.json",
+				ArtifactType:  artifact.TypeCycloneDX,
+				Results: []types.Result{
+					{
+						Target: "Java",
+						Type:   ftypes.Jar,
+						Class:  types.ClassLangPkg,
+						Packages: []ftypes.Package{
+							{
+								ID:      "org.apache.logging.log4j:log4j-core:2.23.1",
+								Name:    "org.apache.logging.log4j:log4j-core",
+								Version: "2.23.1",
+								Identifier: ftypes.PkgIdentifier{
+									UID: "6C0AE96901617503",
+									PURL: &packageurl.PackageURL{
+										Type:      packageurl.TypeMaven,
+										Namespace: "org.apache.logging.log4j",
+										Name:      "log4j-core",
+										Version:   "2.23.1",
+									},
+								},
+								FilePath: "log4j-core-2.23.1.jar",
+							},
+						},
+					},
+				},
+				BOM: newTestBOM2(t),
+			},
+			wantComponents: map[uuid.UUID]*core.Component{
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000001"): fsComponent,
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000002"): libComponent,
+			},
+			wantRels: map[uuid.UUID][]core.Relationship{
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000001"): {
+					{
+						Dependency: uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000002"),
+						Type:       core.RelationshipContains,
+					},
+				},
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000002"): nil,
+			},
+			wantVulns: make(map[uuid.UUID][]core.Vulnerability),
+		},
+		{
+			name: "json file created from SBOM file (BOM is empty)",
+			report: types.Report{
+				SchemaVersion: 2,
+				ArtifactName:  "report.cdx.json",
+				ArtifactType:  artifact.TypeCycloneDX,
+				Results: []types.Result{
+					{
+						Target: "Java",
+						Type:   ftypes.Jar,
+						Class:  types.ClassLangPkg,
+						Packages: []ftypes.Package{
+							{
+								ID:      "org.apache.logging.log4j:log4j-core:2.23.1",
+								Name:    "org.apache.logging.log4j:log4j-core",
+								Version: "2.23.1",
+								Identifier: ftypes.PkgIdentifier{
+									UID: "6C0AE96901617503",
+									PURL: &packageurl.PackageURL{
+										Type:      packageurl.TypeMaven,
+										Namespace: "org.apache.logging.log4j",
+										Name:      "log4j-core",
+										Version:   "2.23.1",
+									},
+								},
+								FilePath: "log4j-core-2.23.1.jar",
+							},
+						},
+					},
+				},
+			},
+			wantComponents: map[uuid.UUID]*core.Component{
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000001"): fsComponent,
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000002"): libComponent,
+			},
+			wantRels: map[uuid.UUID][]core.Relationship{
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000001"): {
+					{
+						Dependency: uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000002"),
+						Type:       core.RelationshipContains,
+					},
+				},
+				uuid.MustParse("3ff14136-e09f-4df9-80ea-000000000002"): nil,
 			},
 			wantVulns: make(map[uuid.UUID][]core.Vulnerability),
 		},
@@ -579,4 +854,76 @@ func TestEncoder_Encode(t *testing.T) {
 			assert.Equal(t, tt.wantVulns, got.Vulnerabilities())
 		})
 	}
+}
+
+var (
+	appComponent = &core.Component{
+		Root: true,
+		Type: core.TypeApplication,
+		Name: "log4j-core-2.23.1.jar",
+	}
+	fsComponent = &core.Component{
+		Root: true,
+		Type: core.TypeFilesystem,
+		Name: "report.cdx.json",
+		PkgIdentifier: ftypes.PkgIdentifier{
+			BOMRef: "3ff14136-e09f-4df9-80ea-000000000001",
+		},
+		Properties: core.Properties{
+			{
+				Name:  "SchemaVersion",
+				Value: "2",
+			},
+		},
+	}
+	libComponent = &core.Component{
+		Type:    core.TypeLibrary,
+		Name:    "log4j-core",
+		Group:   "org.apache.logging.log4j",
+		Version: "2.23.1",
+		PkgIdentifier: ftypes.PkgIdentifier{
+			UID:    "6C0AE96901617503",
+			BOMRef: "pkg:maven/org.apache.logging.log4j/log4j-core@2.23.1",
+			PURL: &packageurl.PackageURL{
+				Type:      packageurl.TypeMaven,
+				Namespace: "org.apache.logging.log4j",
+				Name:      "log4j-core",
+				Version:   "2.23.1",
+			},
+		},
+		Files: []core.File{
+			{
+				Path: "log4j-core-2.23.1.jar",
+			},
+		},
+		Properties: core.Properties{
+			{
+				Name:  "FilePath",
+				Value: "log4j-core-2.23.1.jar",
+			},
+			{
+				Name:  "PkgID",
+				Value: "org.apache.logging.log4j:log4j-core:2.23.1",
+			},
+			{
+				Name:  "PkgType",
+				Value: "jar",
+			},
+		},
+	}
+)
+
+func newTestBOM(t *testing.T) *core.BOM {
+	uuid.SetFakeUUID(t, "2ff14136-e09f-4df9-80ea-%012d")
+	bom := core.NewBOM(core.Options{})
+	bom.AddComponent(appComponent)
+	return bom
+}
+
+// BOM without root component
+func newTestBOM2(t *testing.T) *core.BOM {
+	uuid.SetFakeUUID(t, "2ff14136-e09f-4df9-80ea-%012d")
+	bom := core.NewBOM(core.Options{})
+	bom.AddComponent(libComponent)
+	return bom
 }

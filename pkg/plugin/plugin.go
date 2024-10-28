@@ -57,6 +57,7 @@ type Options struct {
 	Args     []string
 	Stdin    io.Reader // For output plugin
 	Platform ftypes.Platform
+	Insecure bool
 }
 
 func (p *Plugin) Cmd(ctx context.Context, opts Options) (*exec.Cmd, error) {
@@ -154,7 +155,7 @@ func (p *Plugin) install(ctx context.Context, dst, pwd string, opts Options) err
 	p.Installed.Platform = lo.FromPtr(platform.Selector)
 
 	log.DebugContext(ctx, "Downloading the execution file...", log.String("uri", platform.URI))
-	if err = downloader.Download(ctx, platform.URI, dst, pwd); err != nil {
+	if _, err = downloader.Download(ctx, platform.URI, dst, pwd, downloader.Options{Insecure: opts.Insecure}); err != nil {
 		return xerrors.Errorf("unable to download the execution file (%s): %w", platform.URI, err)
 	}
 	return nil
@@ -164,5 +165,5 @@ func (p *Plugin) Dir() string {
 	if p.dir != "" {
 		return p.dir
 	}
-	return filepath.Join(fsutils.HomeDir(), pluginsRelativeDir, p.Name)
+	return filepath.Join(fsutils.TrivyHomeDir(), pluginsDir, p.Name)
 }

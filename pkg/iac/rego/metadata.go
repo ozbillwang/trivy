@@ -49,11 +49,16 @@ func NewStaticMetadata(pkgPath string, inputOpt InputOptions) *StaticMetadata {
 		Description:  fmt.Sprintf("Rego module: %s", pkgPath),
 		Package:      pkgPath,
 		InputOptions: inputOpt,
-		Frameworks:   make(map[framework.Framework][]string),
+		Frameworks: map[framework.Framework][]string{
+			framework.Default: {},
+		},
 	}
 }
 
-func (sm *StaticMetadata) Update(meta map[string]any) error {
+func (sm *StaticMetadata) update(meta map[string]any) error {
+	if sm.Frameworks == nil {
+		sm.Frameworks = make(map[framework.Framework][]string)
+	}
 
 	upd := func(field *string, key string) {
 		if raw, ok := meta[key]; ok {
@@ -90,15 +95,7 @@ func (sm *StaticMetadata) Update(meta map[string]any) error {
 	if raw, ok := meta["url"]; ok {
 		sm.References = append(sm.References, fmt.Sprintf("%s", raw))
 	}
-	if raw, ok := meta["frameworks"]; ok {
-		frameworks, ok := raw.(map[string][]string)
-		if !ok {
-			return fmt.Errorf("failed to parse framework metadata: not an object")
-		}
-		for fw, sections := range frameworks {
-			sm.Frameworks[framework.Framework(fw)] = sections
-		}
-	}
+
 	if raw, ok := meta["related_resources"]; ok {
 		switch relatedResources := raw.(type) {
 		case []map[string]any:
@@ -112,6 +109,9 @@ func (sm *StaticMetadata) Update(meta map[string]any) error {
 		}
 	}
 
+	if err := sm.updateFrameworks(meta); err != nil {
+		return fmt.Errorf("failed to update frameworks: %w", err)
+	}
 	sm.updateAliases(meta)
 
 	var err error
@@ -123,6 +123,38 @@ func (sm *StaticMetadata) Update(meta map[string]any) error {
 		return err
 	}
 
+	return nil
+}
+
+func (sm *StaticMetadata) updateFrameworks(meta map[string]any) error {
+	raw, ok := meta["frameworks"]
+	if !ok {
+		return nil
+	}
+
+	frameworks, ok := raw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("frameworks metadata is not an object, got %T", raw)
+	}
+
+	if len(frameworks) > 0 {
+		sm.Frameworks = make(map[framework.Framework][]string)
+	}
+
+	for fw, rawIDs := range frameworks {
+		ids, ok := rawIDs.([]any)
+		if !ok {
+			return fmt.Errorf("framework ids is not an array, got %T", rawIDs)
+		}
+		fr := framework.Framework(fw)
+		for _, id := range ids {
+			if str, ok := id.(string); ok {
+				sm.Frameworks[fr] = append(sm.Frameworks[fr], str)
+			} else {
+				sm.Frameworks[fr] = []string{}
+			}
+		}
+	}
 	return nil
 }
 
@@ -146,7 +178,7 @@ func (sm *StaticMetadata) FromAnnotations(annotations *ast.Annotations) error {
 		sm.References = append(sm.References, resource.Ref.String())
 	}
 	if custom := annotations.Custom; custom != nil {
-		if err := sm.Update(custom); err != nil {
+		if err := sm.update(custom); err != nil {
 			return err
 		}
 	}
@@ -172,8 +204,15 @@ func NewEngineMetadata(schema string, meta map[string]any) (*scan.EngineMetadata
 	if val, ok := sMap["bad_examples"].(string); ok {
 		em.BadExamples = []string{val}
 	}
-	if val, ok := sMap["links"].(string); ok {
-		em.Links = []string{val}
+	switch links := sMap["links"].(type) {
+	case string:
+		em.Links = []string{links}
+	case []any:
+		for _, v := range links {
+			if str, ok := v.(string); ok {
+				em.Links = append(em.Links, str)
+			}
+		}
 	}
 	if val, ok := sMap["remediation_markdown"].(string); ok {
 		em.RemediationMarkdown = val
@@ -302,7 +341,7 @@ func (m *MetadataRetriever) RetrieveMetadata(ctx context.Context, module *ast.Mo
 		return nil, fmt.Errorf("failed to parse metadata: not an object")
 	}
 
-	if err := metadata.Update(meta); err != nil {
+	if err := metadata.update(meta); err != nil {
 		return nil, err
 	}
 
@@ -408,4 +447,18 @@ func metadataFromRegoModule(module *ast.Module) (*StaticMetadata, error) {
 		}
 	}
 	return meta, nil
+}
+
+func (m *StaticMetadata) hasAnyFramework(frameworks []framework.Framework) bool {
+	if len(frameworks) == 0 {
+		frameworks = []framework.Framework{framework.Default}
+	}
+
+	for _, fr := range frameworks {
+		if _, exists := m.Frameworks[fr]; exists {
+			return true
+		}
+	}
+
+	return false
 }

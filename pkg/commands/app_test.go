@@ -271,7 +271,7 @@ func TestFlags(t *testing.T) {
 				"--scanners",
 				"license",
 				"--compliance",
-				"docker-cis",
+				"docker-cis-1.6.0",
 			},
 			want: want{
 				format: types.FormatTable,
@@ -295,6 +295,15 @@ func TestFlags(t *testing.T) {
 				"foo",
 			},
 			wantErr: `invalid argument "foo" for "--format" flag`,
+		},
+		{
+			name: "missing config file",
+			arguments: []string{
+				"test",
+				"--config",
+				"none",
+			},
+			wantErr: `config file "none" loading error: open none:`,
 		},
 	}
 

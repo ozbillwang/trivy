@@ -34,7 +34,7 @@ In this section you will find an aggregation of the different ways to install Tr
     Add repository setting to `/etc/apt/sources.list.d`.
 
     ``` bash
-    sudo apt-get install wget apt-transport-https gnupg
+    sudo apt-get install wget gnupg
     wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
     echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
     sudo apt-get update
@@ -61,7 +61,7 @@ brew install trivy
 Arch Linux Package Repository.
 
 ```bash
-pacman -S trivy
+sudo pacman -S trivy
 ```
 
 References: 
@@ -163,17 +163,17 @@ The plugin used by both tools is developped [here](https://github.com/zufardhiya
 
 ### Download Binary
 
-1. Download the file for your operating system/architecture from [GitHub Release assets](https://github.com/aquasecurity/trivy/releases/tag/{{ git.tag }}) (`curl -LO https://url.to/trivy.tar.gz`).  
+1. Download the file for your operating system/architecture from [GitHub Release assets](https://github.com/aquasecurity/trivy/releases/tag/{{ git.tag }}).  
 2. Unpack the downloaded archive (`tar -xzf ./trivy.tar.gz`).
-3. Put the binary somewhere in your `$PATH` (e.g `mv ./trivy /usr/local/bin/`).
-4. Make sure the binary has execution bit turned on (`chmod +x ./trivy`).
+3. Make sure the binary has execution bit turned on (`chmod +x ./trivy`).
+4. Put the binary somewhere in your `$PATH` (e.g `sudo mv ./trivy /usr/local/bin/`).
 
 ### Install Script
 
 The process above can be automated by the following script:
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin {{ git.tag }}
+curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin {{ git.tag }}
 ```
 
 ### Install from source
